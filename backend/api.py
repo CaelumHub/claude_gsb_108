@@ -434,21 +434,42 @@ def _serialise_export(obj, fmt: str) -> bytes:
     nodes = obj.get("nodes", [])
     edges = obj.get("edges", [])
     if fmt == "graphml":
+        def _xml(value) -> str:
+            return (
+                str(value)
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+            )
+
         buf = io.StringIO()
         buf.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         buf.write('<graphml xmlns="http://graphml.graphdrawing.org/xmlns">\n')
+        buf.write('  <key id="label" for="node" attr.name="label" attr.type="string"/>\n')
+        buf.write('  <key id="degree" for="node" attr.name="degree" attr.type="int"/>\n')
+        buf.write('  <key id="weighted_degree" for="node" attr.name="weighted_degree" attr.type="double"/>\n')
+        buf.write('  <key id="community" for="node" attr.name="community" attr.type="int"/>\n')
+        buf.write('  <key id="weight" for="edge" attr.name="weight" attr.type="double"/>\n')
         buf.write('  <graph edgedefault="undirected">\n')
         for n in nodes:
-            name = str(n.get("name", n.get("id"))).replace("&", "&amp;").replace("<", "&lt;")
+            name = _xml(n.get("name", n.get("id")))
             deg = n.get("degree", 0)
+            wdeg = n.get("weighted_degree", 0.0)
             comm = n.get("community", -1)
-            buf.write(f'    <node id="{n["id"]}">\n')
+            buf.write(f'    <node id="{_xml(n["id"])}">\n')
             buf.write(f'      <data key="label">{name}</data>\n')
-            buf.write(f'      <data key="degree">{deg}</data>\n')
-            buf.write(f'      <data key="community">{comm}</data>\n')
+            buf.write(f'      <data key="degree">{_xml(deg)}</data>\n')
+            buf.write(f'      <data key="weighted_degree">{_xml(wdeg)}</data>\n')
+            buf.write(f'      <data key="community">{_xml(comm)}</data>\n')
             buf.write("    </node>\n")
         for e in edges:
-            buf.write(f'    <edge source="{e["from"]}" target="{e["to"]}"/>\n')
+            weight = e.get("weight", 1.0)
+            buf.write(
+                f'    <edge source="{_xml(e["from"])}" target="{_xml(e["to"])}">\n'
+                f'      <data key="weight">{_xml(weight)}</data>\n'
+                f'    </edge>\n'
+            )
         buf.write("  </graph>\n</graphml>\n")
         return buf.getvalue().encode("utf-8")
     if fmt == "csv":
@@ -456,7 +477,7 @@ def _serialise_export(obj, fmt: str) -> bytes:
         w = csv.writer(buf)
         w.writerow(["from", "to", "weight"])
         for e in edges:
-            w.writerow([e["from"], e["to"], e.get("weight", config.EXPORT_DEFAULT_WEIGHT)])
+            w.writerow([e["from"], e["to"], e.get("weight", 1.0)])
         return buf.getvalue().encode("utf-8")
     return json.dumps(obj, ensure_ascii=False).encode("utf-8")
 

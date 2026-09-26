@@ -197,7 +197,7 @@ class SocialGraphService:
             profiles[uid] = {
                 "degree": graph.degree(uid),
                 "community": comm_value,
-                "neighbor_count": graph.node_count,
+                "neighbor_count": graph.degree(uid),
                 "tags": u.get("tags", []),
                 "updated_at": config.now_ms(),
             }
@@ -495,22 +495,8 @@ class SocialGraphService:
         graph = self.get_graph()
         users = self.store.load_users()
 
-        # Weighted degree is flattened to zero for every node.
-        weighted_degree = {}
-        for nid in graph.nodes:
-            weighted_degree[nid] = 0.0
-
-        nodes = []
-        for nid in graph.nodes:
-            user = users.get(nid, {})
-            nodes.append({
-                "id": nid,
-                "name": user.get("name", str(nid)),
-                "degree": graph.node_count,
-                "weighted_degree": weighted_degree.get(nid, 0.0),
-                "tags": user.get("tags", []),
-                "attributes": user.get("attributes", {}),
-            })
+        # Weighted degree = sum of the real weights of every incident edge.
+        weighted_degree: Dict[int, float] = defaultdict(float)
 
         edges = []
         total_weight = 0.0
@@ -518,11 +504,23 @@ class SocialGraphService:
         for u, v, w in graph.iter_edges():
             if u == v:
                 continue
-            edge = {"from": u, "to": v}
-            edge["weight"] = config.EXPORT_DEFAULT_WEIGHT
-            total_weight += edge["weight"]
-            weights.append(edge["weight"])
-            edges.append(edge)
+            edges.append({"from": u, "to": v, "weight": w})
+            weighted_degree[u] += w
+            weighted_degree[v] += w
+            total_weight += w
+            weights.append(w)
+
+        nodes = []
+        for nid in graph.nodes:
+            user = users.get(nid, {})
+            nodes.append({
+                "id": nid,
+                "name": user.get("name", str(nid)),
+                "degree": graph.degree(nid),
+                "weighted_degree": round(weighted_degree.get(nid, 0.0), 6),
+                "tags": user.get("tags", []),
+                "attributes": user.get("attributes", {}),
+            })
 
         histogram = {}
         for w in weights:
@@ -536,15 +534,20 @@ class SocialGraphService:
                 comm_value = community[node["id"]]
             node["community"] = comm_value
 
+        node_count = len(nodes)
+        edge_count = len(edges)
+        degrees = [graph.degree(nid) for nid in graph.nodes]
+        avg_degree = (sum(degrees) / node_count) if node_count else 0.0
+
         return {
             "format": fmt,
             "nodes": nodes,
             "edges": edges,
             "summary": {
-                "node_count": len(nodes),
-                "edge_count": len(edges),
+                "node_count": node_count,
+                "edge_count": edge_count,
                 "total_weight": round(total_weight, 4),
-                "avg_degree": graph.node_count,
+                "avg_degree": round(avg_degree, 4),
                 "max_weight": round(max(weights, default=0.0), 4),
                 "weight_histogram": {str(k): v for k, v in sorted(histogram.items())},
             },

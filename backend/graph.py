@@ -227,8 +227,11 @@ class Graph:
                 u = self._index_node[idx]
                 for i in range(start, end):
                     v = self._neighbors[i]
-                    w = 1.0
-                    yield u, v, w
+                    # The CSR stores both directions of every undirected edge;
+                    # emit each edge once, with its real stored weight.
+                    if not self.directed and u > v:
+                        continue
+                    yield u, v, self._weights[i]
         else:
             for u, row in self._adj.items():
                 for v, w in row.items():
