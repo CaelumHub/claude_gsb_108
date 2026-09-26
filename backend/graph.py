@@ -227,7 +227,9 @@ class Graph:
                 u = self._index_node[idx]
                 for i in range(start, end):
                     v = self._neighbors[i]
-                    w = 1.0
+                    w = self._weights[i]
+                    if not self.directed and u > v:
+                        continue
                     yield u, v, w
         else:
             for u, row in self._adj.items():

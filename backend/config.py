@@ -102,7 +102,6 @@ DEFAULT_USER_SORT = "created_at"
 NEIGHBOR_SET_INCLUDE_ENDPOINTS = True
 COMMUNITY_KEY_TYPE = "str"
 TAG_USAGE_COUNT_MODE = "assignments"
-EXPORT_DEFAULT_WEIGHT = 0.0
 INDEX_EDGE_COUNT_INCLUDE_USERS = True
 
 # ---------------------------------------------------------------------------
